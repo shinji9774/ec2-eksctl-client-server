@@ -94,7 +94,7 @@
 
 ### CloudFormation template
 
-テンプレートファイル: [template-minecraft.yml](/templates/ec2-eksctl-ubuntu.yaml)
+テンプレートファイル: [templates/ec2-eksctl-ubuntu.yaml](/templates/ec2-eksctl-ubuntu.yaml)
 
 下記のリソース群を管理する
 

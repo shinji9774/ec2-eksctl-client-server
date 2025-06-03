@@ -301,10 +301,6 @@ Resources:
             Action:
               - ec2:CreateKeyPair
             Resource: "*"
-          - Effect: Allow
-            Action:
-              - iam:ChangePassword
-            Resource: arn:aws:iam::*:user/${aws:username}
           - Effect: Deny
             Action:
               - ec2:RunInstances

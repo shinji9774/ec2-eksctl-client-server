@@ -8,6 +8,9 @@ Parameters:
   MyIP:
     Description: IP address allowed to access EC2
     Type: String
+  UserName:
+    Description: Username allowed to access EC2
+    Type: String
 
 Resources:
   VPC:
@@ -161,7 +164,7 @@ Resources:
                   - ssm:GetParameter
                   - ssm:GetParameters
                 Resource:
-                  - arn:aws:ssm:*:339712930601:parameter/aws/*
+                  - !Sub arn:aws:ssm:*:${AWS::AccountId}:parameter/aws/*
                   - arn:aws:ssm:*::parameter/aws/*
                 Effect: Allow
               - Action:
@@ -207,19 +210,19 @@ Resources:
                   - iam:DeletePolicy
                   - iam:ListPolicyVersions
                 Resource:
-                  - arn:aws:iam::339712930601:instance-profile/eksctl-*
-                  - arn:aws:iam::339712930601:role/eksctl-*
-                  - arn:aws:iam::339712930601:policy/eksctl-*
-                  - arn:aws:iam::339712930601:oidc-provider/*
-                  - arn:aws:iam::339712930601:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup
-                  - arn:aws:iam::339712930601:role/eksctl-managed-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-managed-*
               - Effect: Allow
                 Action:
                   - iam:GetRole
                   - iam:GetUser
                 Resource:
-                  - arn:aws:iam::339712930601:role/*
-                  - arn:aws:iam::339712930601:user/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:user/*
               - Effect: Allow
                 Action:
                   - iam:CreateServiceLinkedRole
@@ -269,3 +272,42 @@ Resources:
               }
           }
         - CloudInitLogGroupName: !Ref CloudInitLogGroup
+
+  UserRole:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-user
+      Users:
+        - !Ref UserName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:Describe*
+              - ec2:GetConsoleScreenshot
+              - ec2:GetPasswordData
+              - cloudformation:List*
+              - cloudformation:Describe*
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - ec2:StartInstances
+              - ec2:StopInstances
+              - ec2-instance-connect:SendSSHPublicKey
+              - ec2-instance-connect:OpenTunnel
+            Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${EC2Instance}
+          - Effect: Allow
+            Action:
+              - ec2:CreateKeyPair
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - iam:ChangePassword
+            Resource: arn:aws:iam::*:user/${aws:username}
+          - Effect: Deny
+            Action:
+              - ec2:RunInstances
+              - ec2:TerminateInstances
+              - ec2:DeleteKeyPair
+            Resource: "*"

@@ -1,0 +1,23 @@
+# This file is used to configure an EKS cluster enabled EBS.
+# Create: eksctl create cluster -f clusterconfig-ebs.yml
+# Delete: eksctl delete cluster -f clusterconfig-ebs.yml
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: my-cluster
+  region: ap-northeast-1
+addons:
+  - name: aws-ebs-csi-driver
+  - name: eks-pod-identity-agent
+addonsConfig:
+  autoApplyPodIdentityAssociations: true
+
+managedNodeGroups:
+  - name: worker-ng-1
+    desiredCapacity: 2
+    volumeSize: 80
+    iam:
+      withAddonPolicies:
+        ebs: true

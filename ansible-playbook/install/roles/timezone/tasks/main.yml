@@ -1,0 +1,11 @@
+---
+- name: Set timezone to Asia/Tokyo
+  community.general.timezone:
+    name: Asia/Tokyo
+  become: true
+
+- name: Restart cron to apply timezone change
+  ansible.builtin.systemd:
+    name: cron.service
+    state: restarted
+  become: true

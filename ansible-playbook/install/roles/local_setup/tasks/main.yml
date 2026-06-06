@@ -1,0 +1,38 @@
+---
+- name: Get private key from AWS Secrets Manager
+  ansible.builtin.set_fact:
+    local_setup_private_key: |-
+      {{ lookup('amazon.aws.ssm_parameter', '/ec2/keypair/' + keypair_id, decrypt=True) }}
+
+- name: Create .ssh directory
+  ansible.builtin.file:
+    path: "~/.ssh"
+    mode: "0700"
+    state: directory
+
+- name: Put private key to file
+  ansible.builtin.copy:
+    content: "{{ local_setup_private_key }}"
+    dest: "~/.ssh/id_rsa"
+    mode: "0600"
+  register: local_setup_private_key_file
+
+- name: Get EC2 instance info for each target
+  amazon.aws.ec2_instance_info:
+    instance_ids: "{{ local_setup_targets | map(attribute='host') | list }}"
+  register: local_setup_ec2_info
+
+- name: Add host with private IP and name tag
+  ansible.builtin.add_host:
+    name: "{{ ec2_info.tags.get('Name', ec2_info.instance_id) }}"
+    groups: "{{ item.groups }}"
+    ansible_host: "{{ ec2_info.private_ip_address }}"
+    ansible_ssh_private_key_file: "{{ local_setup_private_key_file.dest }}"
+    home_key_pair_name: "{{ home_key_pair_name }}"
+    ec2_instance_id: "{{ ec2_info.instance_id }}"
+    aws_region: "{{ aws_region }}"
+  loop: "{{ local_setup_targets }}"
+  loop_control:
+    label: "{{ item.host }}"
+  vars:
+    ec2_info: "{{ local_setup_ec2_info.instances | selectattr('instance_id', 'equalto', item.host) | first }}"

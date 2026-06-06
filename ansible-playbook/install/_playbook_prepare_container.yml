@@ -1,0 +1,8 @@
+---
+- name: Configure target hosts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: load_vars
+    - role: local_setup

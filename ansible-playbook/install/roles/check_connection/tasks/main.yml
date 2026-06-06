@@ -1,0 +1,4 @@
+---
+- name: Wait for establishing connection
+  ansible.builtin.wait_for_connection:
+    timeout: 120

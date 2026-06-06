@@ -1,0 +1,102 @@
+#!/bin/bash
+# 20:00〜09:00の間、30分以上誰もログインしていなければシャットダウン
+
+IDLE_FILE="/tmp/idle_since"
+RANGE_START=${1:-9}
+RANGE_END=${2:-20}
+IDLE_THRESHOLD=${3:-30} # 分
+
+function send_discord_notification() {
+  local idle_minutes=$1
+  local discord_webhook_url="{{ discord_webhook_url }}"
+  local instance_id="{{ ec2_instance_id }}"
+  local aws_region="{{ aws_region }}"
+
+  if [ -z "$discord_webhook_url" ]; then
+    return 0
+  fi
+
+  local hostname
+  hostname=$(hostname)
+
+  local payload
+  payload=$(
+    cat <<EOF
+{
+  "embeds": [
+    {
+      "title": "Server Shutdown",
+      "description": "Auto shutdown triggered",
+      "fields": [
+        {
+          "name": "Instance ID",
+          "value": "[${instance_id}](https://console.aws.amazon.com/ec2/v2/home?region=${aws_region}#Instances:instanceId=${instance_id})",
+          "inline": true
+        },
+        {
+          "name": "Idle Time",
+          "value": "${idle_minutes} minutes",
+          "inline": true
+        },
+        {
+          "name": "Reason",
+          "value": "No users logged in during off-hours",
+          "inline": false
+        }
+      ],
+      "color": 16711680
+    }
+  ]
+}
+EOF
+  )
+
+  curl -X POST "$discord_webhook_url" \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    2>/dev/null
+}
+
+function main() {
+  local hour
+  hour=$(date +%H)
+
+  # ログインユーザ数を取得
+  #   who: SSH/TTYセッション
+  local login_count
+  login_count=$(who | wc -l)
+
+  if [ "$login_count" -eq 0 ]; then
+    if [ ! -f "$IDLE_FILE" ]; then
+      # 誰もいない状態が始まった時間を記録
+      date +%s >"$IDLE_FILE"
+      exit 0
+    fi
+
+    # 時間内ならシャットダウンしない
+    if [ "$hour" -ge "$RANGE_START" ] && [ "$hour" -lt "$RANGE_END" ]; then
+      exit 0
+    fi
+
+    local idle_since
+    idle_since=$(cat "$IDLE_FILE")
+    local now
+    now=$(date +%s)
+    local idle_minutes
+    idle_minutes=$(((now - idle_since) / 60))
+
+    if [ "$idle_minutes" -ge "$IDLE_THRESHOLD" ]; then
+      echo "No users logged in for ${idle_minutes}m during off-hours. Shutting down."
+      rm -f "$IDLE_FILE"
+
+      send_discord_notification "$idle_minutes"
+
+      /sbin/shutdown -h
+    fi
+  else
+    # 誰かいたらリセット
+    rm -f "$IDLE_FILE"
+  fi
+}
+
+main |& logger -t "(CRON)auto_shutdown[$$]"

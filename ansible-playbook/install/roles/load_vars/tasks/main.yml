@@ -1,0 +1,7 @@
+---
+- name: Load vars
+  ansible.builtin.set_fact:
+    target_server: "{{ lookup('env', 'TARGET_INSTANCE_ID', default=undef()) }}"
+    keypair_id: "{{ lookup('env', 'KEYPAIR_ID', default=undef()) }}"
+    home_key_pair_name: "{{ lookup('env', 'KEY_NAME', default=undef()) }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION', default=undef()) }}"

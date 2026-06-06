@@ -1,0 +1,20 @@
+---
+- name: Install server
+  hosts: servers
+  gather_facts: false
+  roles:
+    - role: check_connection
+    - role: apt_upgrade
+    - role: common_packages
+    - role: timezone
+    - role: ssh_setup
+    - role: auto_shutdown
+    - role: awscli
+    - role: kubectl
+    - role: eksctl
+
+- name: Post-process after installation
+  hosts: servers
+  gather_facts: false
+  roles:
+    - role: reboot

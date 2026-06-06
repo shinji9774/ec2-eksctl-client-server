@@ -1,0 +1,24 @@
+---
+- name: Get kubectl stable version
+  ansible.builtin.uri:
+    url: https://dl.k8s.io/release/stable.txt
+    return_content: true
+  register: kubectl_version
+  run_once: true
+
+- name: Download kubectl
+  become: true
+  ansible.builtin.get_url:
+    url: https://dl.k8s.io/release/{{ kubectl_version.content }}/bin/linux/amd64/kubectl
+    dest: /usr/local/bin/kubectl
+    mode: "0755"
+    force: true # インストール済でも更新できるようにする
+
+- name: Add kubectl completion to bash
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/bash_completion.d/kubectl
+    content: |
+      #!/bin/bash
+      source <(kubectl completion bash)
+    mode: "0644"

@@ -1,0 +1,6 @@
+# Generated Ansible Collection Requirements
+---
+collections:
+  - amazon.aws
+  - ansible.posix
+  - community.general

@@ -1,0 +1,7 @@
+---
+- name: Setup Ansible container
+  ansible.builtin.import_playbook: _playbook_prepare_container.yml
+  when: lookup('env', 'AWS_EXECUTION_ENV') in ['AWS_ECS_FARGATE', 'AWS_ECS_EC2']
+
+- name: Install server
+  ansible.builtin.import_playbook: _playbook_install_server.yml

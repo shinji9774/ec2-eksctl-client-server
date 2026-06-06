@@ -1,0 +1,4 @@
+local_setup_targets:
+  - host: "{{ target_server }}"
+    groups:
+      - servers

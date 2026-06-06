@@ -1,0 +1,31 @@
+---
+- name: Create script directory
+  ansible.builtin.file:
+    path: /opt/auto_shutdown
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+  register: auto_shutdown_dir
+
+- name: Deploy auto shutdown script
+  ansible.builtin.template:
+    src: opt/auto_shutdown/auto_shutdown.sh.j2
+    dest: "{{ auto_shutdown_dir.path }}/auto_shutdown"
+    owner: root
+    group: root
+    mode: "0740"
+  become: true
+  register: auto_shutdown_script
+  vars:
+    discord_webhook_url: "{{ lookup('env', 'DISCORD_WEBHOOK_URL') }}"
+
+- name: Set crontab for auto shutdown
+  ansible.builtin.cron:
+    name: "Auto Shutdown Script"
+    user: root
+    minute: "*/5"
+    job: "{{ auto_shutdown_script.dest }}"
+    state: present
+  become: true

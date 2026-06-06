@@ -1,0 +1,10 @@
+---
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - unzip
+      - yq
+    update_cache: true
+    cache_valid_time: 3600
+    state: present
+  become: true

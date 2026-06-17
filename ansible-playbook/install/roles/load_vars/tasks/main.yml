@@ -5,3 +5,6 @@
     keypair_id: "{{ lookup('env', 'KEYPAIR_ID', default=undef()) }}"
     home_key_pair_name: "{{ lookup('env', 'KEY_NAME', default=undef()) }}"
     aws_region: "{{ lookup('env', 'AWS_REGION', default=undef()) }}"
+    eksctl_job_queue: "{{ lookup('env', 'EKSCTL_JOB_QUEUE', default=undef()) }}"
+    eksctl_create_job_def: "{{ lookup('env', 'EKSCTL_CREATE_JOB_DEF', default=undef()) }}"
+    eksctl_delete_job_def: "{{ lookup('env', 'EKSCTL_DELETE_JOB_DEF', default=undef()) }}"

@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+
+ACTION=${1:?Usage: eksctl_lifecycle.sh create|delete}
+JOB_QUEUE="{{ eksctl_job_queue }}"
+EKSCTL_CREATE_JOB_DEF="{{ eksctl_create_job_def }}"
+EKSCTL_DELETE_JOB_DEF="{{ eksctl_delete_job_def }}"
+AWS_REGION="{{ aws_region }}"
+
+case "$ACTION" in
+  create) JOB_DEF="$EKSCTL_CREATE_JOB_DEF" ;;
+  delete) JOB_DEF="$EKSCTL_DELETE_JOB_DEF" ;;
+  *) echo "Unknown action: $ACTION"; exit 1 ;;
+esac
+
+JOB_ID=$(aws batch submit-job \
+  --job-name "eks-${ACTION}-$(date +%s)" \
+  --job-queue "$JOB_QUEUE" \
+  --job-definition "$JOB_DEF" \
+  --region "$AWS_REGION" \
+  --query jobId \
+  --output text)
+
+echo "EKS ${ACTION} job submitted: $JOB_ID"
+
+while sleep 30; do
+  STATUS=$(aws batch describe-jobs \
+    --jobs "$JOB_ID" \
+    --region "$AWS_REGION" \
+    --query "jobs[0].status" \
+    --output text)
+  echo "Job $JOB_ID status: $STATUS"
+  [[ "$STATUS" == "SUCCEEDED" || "$STATUS" == "FAILED" ]] && break
+done
+
+echo "EKS ${ACTION} completed with status: $STATUS"
+[[ "$STATUS" == "SUCCEEDED" ]] && exit 0 || exit 1

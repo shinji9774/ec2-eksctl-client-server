@@ -11,10 +11,10 @@
     - role: auto_shutdown
     - role: awscli
     - role: kubectl
-    - role: eksctl
+    - role: eks_lifecycle
 
 - name: Post-process after installation
   hosts: servers
   gather_facts: false
   roles:
-    - role: reboot
+    - role: shutdown

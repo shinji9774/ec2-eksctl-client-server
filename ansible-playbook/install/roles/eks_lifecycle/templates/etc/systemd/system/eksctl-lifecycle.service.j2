@@ -1,0 +1,19 @@
+[Unit]
+Description=EKS cluster lifecycle (create on start, delete on stop)
+After=network-online.target cloud-final.service
+Wants=network-online.target
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{ eks_lifecycle_script_path }} create
+ExecStop={{ eks_lifecycle_script_path }} delete
+TimeoutStartSec=3600
+TimeoutStopSec=1800
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

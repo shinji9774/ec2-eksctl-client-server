@@ -1,0 +1,38 @@
+---
+- name: Create eks_lifecycle script directory
+  ansible.builtin.file:
+    path: /opt/eks_lifecycle
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+  register: eks_lifecycle_dir
+
+- name: Deploy eks lifecycle script
+  ansible.builtin.template:
+    src: opt/eks_lifecycle/eksctl_lifecycle.sh.j2
+    dest: "{{ eks_lifecycle_dir.path }}/eksctl_lifecycle.sh"
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+  register: eks_lifecycle_script
+
+- name: Deploy eksctl-lifecycle systemd unit
+  ansible.builtin.template:
+    src: etc/systemd/system/eksctl-lifecycle.service.j2
+    dest: /etc/systemd/system/eksctl-lifecycle.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  vars:
+    eks_lifecycle_script_path: eks_lifecycle_script.dest
+
+- name: Enable eksctl-lifecycle service
+  ansible.builtin.systemd:
+    name: eksctl-lifecycle.service
+    enabled: true
+    daemon_reload: true
+  become: true

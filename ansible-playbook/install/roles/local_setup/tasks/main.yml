@@ -30,6 +30,9 @@
     ansible_ssh_private_key_file: "{{ local_setup_private_key_file.dest }}"
     home_key_pair_name: "{{ home_key_pair_name }}"
     ec2_instance_id: "{{ ec2_info.instance_id }}"
+    eksctl_job_queue: "{{ eksctl_job_queue }}"
+    eksctl_create_job_def: "{{ eksctl_create_job_def }}"
+    eksctl_delete_job_def: "{{ eksctl_delete_job_def }}"
     aws_region: "{{ aws_region }}"
   loop: "{{ local_setup_targets }}"
   loop_control:

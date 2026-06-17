@@ -28,7 +28,7 @@
     mode: "0644"
   become: true
   vars:
-    eks_lifecycle_script_path: eks_lifecycle_script.dest
+    eks_lifecycle_script_path: "{{ eks_lifecycle_script.dest }}"
 
 - name: Enable eksctl-lifecycle service
   ansible.builtin.systemd:

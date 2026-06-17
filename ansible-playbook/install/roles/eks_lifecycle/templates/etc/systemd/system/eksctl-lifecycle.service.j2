@@ -3,7 +3,8 @@ Description=EKS cluster lifecycle (create on start, delete on stop)
 After=network-online.target cloud-final.service
 Wants=network-online.target
 DefaultDependencies=no
-Before=shutdown.target reboot.target halt.target
+Before=shutdown.target halt.target poweroff.target
+Conflicts=shutdown.target halt.target poweroff.target
 
 [Service]
 Type=oneshot

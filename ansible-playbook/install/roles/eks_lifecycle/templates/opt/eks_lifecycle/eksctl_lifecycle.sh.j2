@@ -9,7 +9,13 @@ AWS_REGION="{{ aws_region }}"
 
 case "$ACTION" in
   create) JOB_DEF="$EKSCTL_CREATE_JOB_DEF" ;;
-  delete) JOB_DEF="$EKSCTL_DELETE_JOB_DEF" ;;
+  delete)
+    if systemctl list-jobs 2>/dev/null | grep -q 'reboot.target.*start'; then
+      echo "System is rebooting, skipping EKS cluster delete"
+      exit 0
+    fi
+    JOB_DEF="$EKSCTL_DELETE_JOB_DEF"
+    ;;
   *) echo "Unknown action: $ACTION"; exit 1 ;;
 esac
 

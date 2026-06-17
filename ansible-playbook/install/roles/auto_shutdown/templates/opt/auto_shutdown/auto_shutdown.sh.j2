@@ -1,9 +1,9 @@
 #!/bin/bash
-# 20:00〜09:00の間、30分以上誰もログインしていなければシャットダウン
+# 19:00〜09:00の間、30分以上誰もログインしていなければシャットダウン
 
 IDLE_FILE="/tmp/idle_since"
 RANGE_START=${1:-9}
-RANGE_END=${2:-20}
+RANGE_END=${2:-19}
 IDLE_THRESHOLD=${3:-30} # 分
 
 function send_discord_notification() {

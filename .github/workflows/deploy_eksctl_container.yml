@@ -1,0 +1,72 @@
+name: Deploy eksctl Runner Container
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "eksctl-runner/**"
+
+env:
+  AWS_REGION: ap-northeast-1
+  AWS_ECR_EKSCTL_REPOSITORY: util-container
+  EKSCTL_IMAGE_NAME: eksctl-runner
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  build-eksctl-image:
+    name: Build eksctl Runner Container
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./eksctl-runner
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.AWS_ECR_EKSCTL_REPOSITORY }}/${{ env.EKSCTL_IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./eksctl-runner
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ env.EKSCTL_IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ env.EKSCTL_IMAGE_NAME }}:buildcache,mode=max
+          provenance: false

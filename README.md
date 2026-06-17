@@ -18,90 +18,80 @@
    - 右上の「インスタンスの状態」から「インスタンスを開始」を選択
    - インスタンスが「実行中」になることを確認
 
+   > [!NOTE]
+   > インスタンス起動と同時に、EKSクラスターの作成がバックグラウンドで自動開始される。
+   > 完了まで約15〜30分かかる（[EKSクラスター作成の完了を確認する](#eksクラスター作成の完了を確認する)を参照）。
+
 5. **インスタンスに接続**
    - ログインしたいインスタンスをクリックして選択
    - 右上の「接続」ボタンをクリック
    - 「EC2 Instance Connect」タブでユーザー名が「Ubuntu」であることを確認
    - 「接続」ボタンをクリック
 
-### Kubernetesクラスタを作成する
+### EKSクラスター作成の完了を確認する
 
-1. **eksctlを実行**
-   ```
-   eksctl create cluster --name my-cluster --region ap-northeast-1 --nodes 2
-   ```
-   - `--name`：クラスター名
-   - `--region`：デプロイするAWSリージョン( `ap-northeast-1` を指定)
-   - `--nodes`：workerノード数(default: 2)
+インスタンス起動後、EKSクラスターの作成はバックグラウンドで自動実行される。作成完了を確認するには以下を実行する。
 
-2. **コマンドの完了を待つ**
-   - 完了まで15minほどかかる
+1. **systemdサービスのステータスを確認**
+
+   ```bash
+   systemctl status eksctl-lifecycle.service
+   ```
+
+   - `active (exited)` → クラスター作成完了
+   - `activating (start)` → 作成中（しばらく待つ）
+   - `failed` → 作成失敗（ログを確認）
+
+   > [!IMPORTANT]
+   > 原則として `systemctl restart eksctl-lifecycle.service` の実行は禁止。EKSクラスターの再作成が実行されるため（全体で1時間近くかかる可能性がある）
+
+2. **クラスターの接続情報を取得**
+
+   ```bash
+   aws eks update-kubeconfig --name my-cluster --region ap-northeast-1
+   ```
 
 3. **kubectlでクラスターにアクセスできることを確認**
-   ```
+
+   ```bash
    kubectl get nodes
    ```
-   - 下記のようにworkerノードが出力される
-      ```
-      $ kubectl get nodes
-      NAME                                                STATUS   ROLES    AGE   VERSION
-      ip-192-168-47-234.ap-northeast-1.compute.internal   Ready    <none>   10m   v1.32.3-eks-473151a
-      ip-192-168-92-180.ap-northeast-1.compute.internal   Ready    <none>   10m   v1.32.3-eks-473151a
-      ```
-      - masterノードはAWS管理のため表示されない
+
+   - 下記のようにworkerノードが出力されることを確認
+
+     ```text
+     $ kubectl get nodes
+     NAME                                                STATUS   ROLES    AGE   VERSION
+     ip-192-168-47-234.ap-northeast-1.compute.internal   Ready    <none>   10m   v1.32.3-eks-473151a
+     ip-192-168-92-180.ap-northeast-1.compute.internal   Ready    <none>   10m   v1.32.3-eks-473151a
+     ```
+
+   - masterノードはAWS管理のため表示されない
 
 ### Kubernetesクラスタの情報を確認する
 
-1. **eksctlを実行**
-   ```
-   eksctl get cluster --region ap-northeast-1
-   ```
-   - `--region`：デプロイしたAWSリージョン( `ap-northeast-1` を指定)
-
-### Kubernetesクラスタを削除する
-
-> [!IMPORTANT]
-> Amazon EKSクラスタは従量課金のため、作業終了時には本手順で削除しておくこと
-
-1. **eksctlを実行**
-   ```
-   eksctl delete cluster --name my-cluster --region ap-northeast-1
-   ```
-   - `--name`：作成したクラスター名
-   - `--region`：デプロイしたAWSリージョン( `ap-northeast-1` を指定)
-
-2. **コマンドの完了を待つ**
-   - 完了まで15minほどかかる
+1. **AWSコンソールでEKSクラスターを確認**
+   - サービス一覧から「EKS」を選択し、クラスター一覧に `my-cluster` が表示されることを確認
 
 ### クライアントサーバを停止する
 
 > [!IMPORTANT]
-> Amazon EC2は動作中は従量課金のため、作業終了時には本手順で停止しておくこと
+> Amazon EC2およびEKSは従量課金のため、作業終了時には本手順で停止しておくこと
 
 1. **shutdownを実行**
-   ```
+
+   ```bash
    sudo shutdown -h now
    ```
-   - すぐに停止されるためコンソールの応答がなくなる。そのままコンソールのページを閉じてよい
 
-2. **インスタンスの確認**  
+   - 実行後はコンソールの応答がなくなる。そのままコンソールのページを閉じてよい
+
+2. **インスタンスの確認**
    - 「[サーバにログインする](#サーバにログインする)」の手順1～3を参照し、クライアントサーバのインスタンスを一覧から確認
 
 3. **対象インスタンスの停止を確認**
    - インスタンスの状態が「停止済み」になることを確認
+   - EKSコンソールでクラスターが削除されていることも確認
 
-## 環境構成
-
-### CloudFormation template
-
-テンプレートファイル: [templates/ec2-eksctl-ubuntu.yaml](/templates/ec2-eksctl-ubuntu.yaml)
-
-下記のリソース群を管理する
-
-![テンプレート](/templates/ec2-eksctl-ubuntu.png)
-
-### 構成図
-
-### 参考
-
-- [eksctl公式ドキュメント](https://eksctl.io/)
+   > [!NOTE]
+   > サーバ停止時、EKSクラスターの削除が自動実行される。削除完了後にEC2インスタンスが停止するため、**停止完了まで最大20分かかる**。

@@ -155,6 +155,106 @@ Resources:
                   - ssm:GetParameter
                 Resource: "*"
 
+  # eksctl を実行する Fargate コンテナ用ロール（強権限はここに集約）
+  EksctlTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      RoleName: !Sub ${AWS::StackName}-eksctl-task-role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+      Policies:
+        - PolicyName: EksAllAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: eks:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub arn:aws:ssm:*:${AWS::AccountId}:parameter/aws/*
+                  - arn:aws:ssm:*::parameter/aws/*
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/eks/*
+              - Effect: Allow
+                Action:
+                  - kms:CreateGrant
+                  - kms:DescribeKey
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:PutRetentionPolicy
+                Resource: "*"
+        - PolicyName: IamLimitedAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateInstanceProfile
+                  - iam:DeleteInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:RemoveRoleFromInstanceProfile
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:AddRoleToInstanceProfile
+                  - iam:ListInstanceProfilesForRole
+                  - iam:PassRole
+                  - iam:DetachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:GetOpenIDConnectProvider
+                  - iam:CreateOpenIDConnectProvider
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:TagOpenIDConnectProvider
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:GetPolicy
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:ListPolicyVersions
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/eksctl-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-managed-*
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetUser
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:user/*
+              - Effect: Allow
+                Action:
+                  - iam:CreateServiceLinkedRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:AWSServiceName:
+                      - eks.amazonaws.com
+                      - eks-nodegroup.amazonaws.com
+                      - eks-fargate.amazonaws.com
+
   # ------------------------------------------------------------#
   # AWS Batch
   # ------------------------------------------------------------#
@@ -191,6 +291,120 @@ Resources:
       Priority: 1
       JobQueueName: !Sub ${AWS::StackName}-queue
 
+  # ------------------------------------------------------------#
+  # SSM Parameters
+  # ------------------------------------------------------------#
+  EksClusterConfigParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/eks/cluster-config
+      Type: String
+      Value: !Sub |
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: my-cluster
+          region: ${AWS::Region}
+        iamIdentityMappings:
+          - arn: arn:aws:iam::${AWS::AccountId}:role/${EC2Role}
+            username: ec2-client
+            groups:
+              - system:masters
+        addons:
+          - name: aws-ebs-csi-driver
+          - name: eks-pod-identity-agent
+        addonsConfig:
+          autoApplyPodIdentityAssociations: true
+        managedNodeGroups:
+          - name: worker-ng-1
+            desiredCapacity: 2
+            volumeSize: 80
+            iam:
+              withAddonPolicies:
+                ebs: true
+
+  # ------------------------------------------------------------#
+  # eksctl runner Job Definitions
+  # ------------------------------------------------------------#
+  EksctlCreateJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    DependsOn:
+      - EksClusterConfigParameter
+    Properties:
+      Type: container
+      JobDefinitionName: !Sub ${AWS::StackName}-eksctl-create-jobdef
+      Timeout:
+        AttemptDurationSeconds: 3600
+      PlatformCapabilities:
+        - FARGATE
+      ContainerProperties:
+        Image: !Sub ${EcrRegistry}/util-container/eksctl-runner:latest
+        Command:
+          - create
+          - cluster
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref ECSLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: eksctl-create
+        Environment:
+          - Name: CLUSTER_CONFIG_PARAM
+            Value: !Sub /${AWS::StackName}/eks/cluster-config
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        ResourceRequirements:
+          - Type: VCPU
+            Value: "1"
+          - Type: MEMORY
+            Value: "2048"
+        ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+        JobRoleArn: !GetAtt EksctlTaskRole.Arn
+      RetryStrategy:
+        Attempts: 1
+
+  EksctlDeleteJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    DependsOn:
+      - EksClusterConfigParameter
+    Properties:
+      Type: container
+      JobDefinitionName: !Sub ${AWS::StackName}-eksctl-delete-jobdef
+      Timeout:
+        AttemptDurationSeconds: 1800
+      PlatformCapabilities:
+        - FARGATE
+      ContainerProperties:
+        Image: !Sub ${EcrRegistry}/util-container/eksctl-runner:latest
+        Command:
+          - delete
+          - cluster
+          - --wait
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref ECSLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: eksctl-delete
+        Environment:
+          - Name: CLUSTER_CONFIG_PARAM
+            Value: !Sub /${AWS::StackName}/eks/cluster-config
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        ResourceRequirements:
+          - Type: VCPU
+            Value: "1"
+          - Type: MEMORY
+            Value: "2048"
+        ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+        JobRoleArn: !GetAtt EksctlTaskRole.Arn
+      RetryStrategy:
+        Attempts: 1
+
   # Create JobDefinition
   MyJobDefinition:
     Type: AWS::Batch::JobDefinition
@@ -218,6 +432,14 @@ Resources:
             Value: !Ref KeyName
           - Name: DISCORD_WEBHOOK_URL
             Value: !Ref DiscordWebhookUrl
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+          - Name: EKSCTL_JOB_QUEUE
+            Value: !Ref MyJobQueue
+          - Name: EKSCTL_CREATE_JOB_DEF
+            Value: !Ref EksctlCreateJobDefinition
+          - Name: EKSCTL_DELETE_JOB_DEF
+            Value: !Ref EksctlDeleteJobDefinition
         Command:
           - make
           - install-server
@@ -424,91 +646,20 @@ Resources:
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: EksAllAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: eks:*
-                Resource: "*"
-              - Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource:
-                  - !Sub arn:aws:ssm:*:${AWS::AccountId}:parameter/aws/*
-                  - arn:aws:ssm:*::parameter/aws/*
-                Effect: Allow
-              - Action:
-                  - kms:CreateGrant
-                  - kms:DescribeKey
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - logs:PutRetentionPolicy
-                Resource: "*"
-                Effect: Allow
-        - PolicyName: IamLimitedAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - iam:CreateInstanceProfile
-                  - iam:DeleteInstanceProfile
-                  - iam:GetInstanceProfile
-                  - iam:RemoveRoleFromInstanceProfile
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:AttachRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:UpdateAssumeRolePolicy
-                  - iam:AddRoleToInstanceProfile
-                  - iam:ListInstanceProfilesForRole
-                  - iam:PassRole
-                  - iam:DetachRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:GetRolePolicy
-                  - iam:GetOpenIDConnectProvider
-                  - iam:CreateOpenIDConnectProvider
-                  - iam:DeleteOpenIDConnectProvider
-                  - iam:TagOpenIDConnectProvider
-                  - iam:ListAttachedRolePolicies
-                  - iam:TagRole
-                  - iam:UntagRole
-                  - iam:GetPolicy
-                  - iam:CreatePolicy
-                  - iam:DeletePolicy
-                  - iam:ListPolicyVersions
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:instance-profile/eksctl-*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:policy/eksctl-*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/eksctl-managed-*
-              - Effect: Allow
-                Action:
-                  - iam:GetRole
-                  - iam:GetUser
-                Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/*
-                  - !Sub arn:aws:iam::${AWS::AccountId}:user/*
-              - Effect: Allow
-                Action:
-                  - iam:CreateServiceLinkedRole
-                Resource: "*"
-                Condition:
-                  StringEquals:
-                    iam:AWSServiceName:
-                      - eks.amazonaws.com
-                      - eks-nodegroup.amazonaws.com
-                      - eks-fargate.amazonaws.com
       Path: "/"
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
-        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+      Policies:
+        - PolicyName: EksClientMinimal
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: eks:DescribeCluster
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - batch:SubmitJob
+                  - batch:DescribeJobs
+                Resource: "*"
 
   UserRole:
     Type: AWS::IAM::Policy
@@ -526,6 +677,17 @@ Resources:
               - ec2:GetPasswordData
               - cloudformation:List*
               - cloudformation:Describe*
+              - eks:DescribeCluster
+              - eks:ListClusters
+              - eks:ListNodegroups
+              - eks:DescribeNodegroup
+              - eks:ListFargateProfiles
+              - eks:DescribeFargateProfile
+              - eks:ListAddons
+              - eks:DescribeAddon
+              - eks:ListUpdates
+              - eks:DescribeUpdate
+              - eks:AccessKubernetesApi
             Resource: "*"
           - Effect: Allow
             Action:

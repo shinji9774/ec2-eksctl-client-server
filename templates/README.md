@@ -2,6 +2,10 @@
 
 ## 環境構成
 
+## 構成図
+
+![構成図](ec2-eksctl-ubuntu.drawio.svg)
+
 ### アーキテクチャ概要
 
 ```text

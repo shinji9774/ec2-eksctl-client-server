@@ -32,6 +32,9 @@
 
 インスタンス起動後、EKSクラスターの作成はバックグラウンドで自動実行される。作成完了を確認するには以下を実行する。
 
+> [!IMPORTANT]
+> 原則として `systemctl restart eksctl-lifecycle.service` の実行は禁止。EKSクラスターの再作成が実行されるため（全体で1時間近くかかる可能性がある）
+
 1. **systemdサービスのステータスを確認**
 
    ```bash
@@ -41,9 +44,6 @@
    - `active (exited)` → クラスター作成完了
    - `activating (start)` → 作成中（しばらく待つ）
    - `failed` → 作成失敗（ログを確認）
-
-   > [!IMPORTANT]
-   > 原則として `systemctl restart eksctl-lifecycle.service` の実行は禁止。EKSクラスターの再作成が実行されるため（全体で1時間近くかかる可能性がある）
 
 2. **クラスターの接続情報を取得**
 

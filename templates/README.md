@@ -43,6 +43,18 @@ EC2のIAMロールは以下の最小権限のみ保持する。
 
 `RemainAfterExit=yes` により、EKS作成が失敗した場合はシャットダウン時の削除ジョブは実行されない。
 
+#### 夜間自動クリーンアップ
+
+EventBridge スケジュール + Lambda により、EC2停止中にEKSクラスターが残存している場合は夜間に自動削除する。
+
+| 項目 | 内容 |
+| --- | --- |
+| 実行時間帯 | 21:00 〜 08:00 JST（毎時0分に起動） |
+| 削除条件 | EC2インスタンスが `running` でない **かつ** EKSクラスターが存在する |
+| 実行内容 | `EksctlDeleteJobDefinition` を Batch に submit |
+
+EC2が起動中の場合や、EKSクラスターがすでに存在しない場合はジョブをsubmitせずにスキップする。
+
 ### CloudFormation template
 
 テンプレートファイル: [ec2-eksctl-ubuntu.yaml](ec2-eksctl-ubuntu.yaml)

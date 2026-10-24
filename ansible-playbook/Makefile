@@ -34,9 +34,9 @@ build: ## [development] build docker image
 run-local: build ## [development] run ansible playbook in docker container
 	@docker run --rm -it ansible-test bash
 
-.PHONY : syntax-check
-syntax-check: ## [development] syntax check all playbooks
-	$(ANSIBLE_PLAYBOOK_CMD) -i hosts.yml --syntax-check $(shell find . -name 'playbook_*.yml')
+.PHONY : test
+test: ## [development] run tests
+	uv run --locked --only-group ansible-test pytest tests/test_ansible_compatibility.py
 
 .PHONY : generate-ansible-requirements
 generate-ansible-requirements: ## [development] generate ansible collection requirements

@@ -8,5 +8,15 @@ dependencies = [
     "botocore",
 ]
 
+[dependency-groups]
+ansible-test = [
+    "ansible-lint",
+    "pytest",
+]
+
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

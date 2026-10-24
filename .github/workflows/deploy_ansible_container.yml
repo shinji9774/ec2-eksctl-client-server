@@ -55,7 +55,7 @@ jobs:
 
       - name: Test
         run: |
-          docker run --rm ${{ env.TEST_TAG }} make syntax-check
+          docker run --rm ${{ env.TEST_TAG }} make test
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

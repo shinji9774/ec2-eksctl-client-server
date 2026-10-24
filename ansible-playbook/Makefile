@@ -1,4 +1,5 @@
 ANSIBLE_LOG_PATH ?= ./logs/ansible-$$(date +%Y%m%d-%H%M%S).log
+ANSIBLE_PLAYBOOK_CMD ?= uv run --locked ansible-playbook
 
 export ANSIBLE_CONFIG := ./ansible.cfg
 
@@ -12,7 +13,7 @@ endef
 define _run_Playbook
 	@mkdir -p $(shell dirname $(ANSIBLE_LOG_PATH)); \
 	ANSIBLE_LOG_PATH=$(ANSIBLE_LOG_PATH) \
-	ansible-playbook -i ./hosts.yml "./$(1)" $(2) $(ANSIBLE_EXTRA_OPTIONS)
+	$(ANSIBLE_PLAYBOOK_CMD) -i ./hosts.yml "./$(1)" $(2) $(ANSIBLE_EXTRA_OPTIONS)
 endef
 
 .PHONY : help
@@ -35,7 +36,7 @@ run-local: build ## [development] run ansible playbook in docker container
 
 .PHONY : syntax-check
 syntax-check: ## [development] syntax check all playbooks
-	ansible-playbook -i hosts.yml --syntax-check $(shell find . -name 'playbook_*.yml')
+	$(ANSIBLE_PLAYBOOK_CMD) -i hosts.yml --syntax-check $(shell find . -name 'playbook_*.yml')
 
 .PHONY : generate-ansible-requirements
 generate-ansible-requirements: ## [development] generate ansible collection requirements
